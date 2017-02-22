@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>Document</title>
+	<link rel="stylesheet" type="text/css" href="jquery-easyui-1.5.1/themes/default/easyui.css">
+	<link rel="stylesheet" type="text/css" href="jquery-easyui-1.5.1/themes/icon.css">
+	<link rel="stylesheet" type="text/css" href="jquery-easyui-1.5.1/demo/demo.css">
+	<script type="text/javascript" src="jquery-easyui-1.5.1/jquery.min.js"></script>
+	<script type="text/javascript" src="jquery-easyui-1.5.1/jquery.easyui.min.js"></script>
+</head>
+<body>
+	
+	<div class="easyui-layout"  data-options="fit:true">
+		<div data-options="region:'north'" style="height:50px">
+			<a id="Addbtn" href="#">Add</a>
+			<a id="Removebtn" href="#">Remove</a>
+			<a id="Savebtn" href="#">Save</a>
+			<a id="Cutbtn" href="#">Cut</a>
+			<a id="Textbtn" href="#">Text Button</a>
+		</div>
+		<div data-options="region:'south',split:true" style="height:50px;"></div>
+		<div data-options="region:'east',split:true" title="East" style="width:100px;">
+		</div>
+		<div data-options="region:'west',split:true" title="目录" style="width:100px;">
+			<ul class="easyui-tree" id="tree"></ul>
+		</div>
+		<div data-options="region:'center',title:'主体内容',iconCls:'icon-ok'">
+			<div id="dg"></div>
+		</div>
+	</div>
+
+	<!-- 对话框 -->
+	<div id="wu-dialog" class="easyui-dialog" data-options="closed:true,iconCls:'icon-save'" style="width:400px;padding:10px">
+		<form id="wu-form" method="post">
+			<table>
+				<tr>
+					<td>用户名</td>
+					<td><input type="text" name="uName" id="txtName" required /></td>
+				</tr>
+				<tr>
+					<td>标题</td>
+					<td><input type="text" name="title" id="txtTitle" required /></td>
+				</tr>
+				<tr>
+					<td>内容</td>
+					<td><input type="text" name="words" id="txtWord" required/></td>
+				</tr>
+			</table>
+		</form>
+	</div>
+
+	
+	<script type="text/javascript">
+		$(function(){
+				//树状结构
+				$('#tree').tree({
+				    url:'tree_data1.json',
+				    method:"post",
+				    animation:true
+				   
+				});
+
+				//初始数据库
+				initDatabase();
+				//初始化数据表
+				showAllTheData();
+
+
+
+				//创建或者获取数据库操作
+				function getCurrentDb(){
+					var db = openDatabase("myDb","1.0","Demo",1024*1024);
+					return db;
+				}
+
+				//初始化数据库操作
+				function initDatabase(){
+					var db = getCurrentDb();
+					if(!db){
+						alert('该浏览器不支持H5本地数据库操作');
+						return;
+					}
+					//如果支持者执行回调函数
+					db.transaction(function(trans){
+						trans.executeSql("create table if not exists Demo (uName text null,title text null,words text null)",[],function(trans,result){
+							console.log("表创建成功");
+						},function(trans,error){
+							console.log(error);
+						})
+					})
+				}
+				//自定义函数1的设置
+				//add函数 添加数数的保存按钮，如果数据添加成功，则关闭添加对话框
+				function add(){
+					var txtName = $("#txtName").val();
+					var txtTitle = $("#txtTitle").val();
+					var txtWord = $("#txtWord").val();
+					
+					//打开数据库
+					var db = getCurrentDb();
+					db.transaction(function(trans){
+						trans.executeSql("insert into Demo (uName,title,words) values(?,?,?)",[txtName,txtTitle,txtWord],function(trans,result){
+							$("#wu-dialog").dialog('close');
+						});
+					})
+				}
+				//自定义函数1的设置
+				//修改数据
+				function edit(){
+					var txtName = $("#txtName").val();
+					var txtTitle = $("#txtTitle").val();
+					var txtWord = $("#txtWord").val();
+					var item = $("#dg").datagrid('getSelected');
+					var rowid = item.rowid;
+					
+					//打开数据库
+					var db = getCurrentDb();
+					db.transaction(function(trans){
+						trans.executeSql("update Demo set uName=?,title=?,words=? where rowid=?",[txtName,txtTitle,txtWord,rowid],function(trans,result){
+							$("#wu-dialog").dialog('close');
+							showAllTheData();
+						});
+					})
+				}
+				//删除数据
+				function dataRemove(){
+					var item = $("#dg").datagrid('getSelected');
+					var rowid = item.rowid;
+					
+					//打开数据库
+					var db = getCurrentDb();
+					db.transaction(function(trans){
+						trans.executeSql("delete from Demo where rowid=?",[rowid],function(trans,result){
+							showAllTheData();
+						});
+					})
+				}
+				//删除多行数据
+				function removeDatas(){
+					var item = $("#dg").datagrid('getSelections');
+					var rowid = [];
+					for(var i=0;i<item.length;i++){
+						rowid.push(item[i].rowid);
+					}
+					//打开数据库
+					var db = getCurrentDb();
+					db.transaction(function(trans){
+						trans.executeSql("delete from Demo where rowid in("+rowid.join(',')+")",[],function(trans,result){
+							showAllTheData();
+						});
+					})
+				}
+				//showAllTheData处理datagrid表格，每次操作都将调用该方法
+				function showAllTheData(){
+					var db = getCurrentDb();
+					db.transaction(function(trans){
+						trans.executeSql("select rowid , * from Demo",[],function(trans,results){
+							var ResultData = [];
+							if(results.rows){
+								var dataLength = results.rows.length;
+								//如果大于10条，则根据10条来循环
+								//如果小于十条记录则进行小于10条来循环判断
+								if(dataLength<10){
+									for(var i = 0;i<dataLength;i++){
+										ResultData.push(results.rows.item(i));
+									}
+								}else{
+									for(var i = 0; i<10;i++){
+										ResultData.push(results.rows.item(i));
+									}
+								}//end if
+							}// end if
+
+							//当前页的total记录总条数，rows当前页显示的行数
+							var datagridData={
+								"total":dataLength,
+								"rows":ResultData
+							}
+							//创建表格内主体内容
+							$("#dg").datagrid({
+									data:ResultData,
+									rownumbers:true,//显示行数
+									singleSelect:false,//单行选择
+									pagination:true,//表示分页
+									pageSize:10,
+									fit:true,
+									fitColumns:true,
+									toolbar: [{
+			   					 		text : "添加",
+										iconCls: 'icon-add',
+										handler: function(){
+											dataAdd();
+										}
+									},'-',{
+										text : "修改",
+										iconCls: 'icon-edit',
+										handler: function(){
+											dataEdit();
+										}
+									},'-',{
+										text : "删除",
+										iconCls: 'icon-remove',
+										handler: function(){
+											dataRemove();
+										}
+									},'-',{
+										text : "删除多个",
+										iconCls: 'icon-remove',
+										handler: function(){
+											removeDatas();
+										}
+									}],
+									columns:[[
+										{field:'ck',checkbox:true},
+								        {field:'uName',title:'用户名',width:100},
+									    {field:'title',title:'标题',width:100},
+								        {field:'words',title:'内容',width:100}
+			   						]]
+							})//end grid
+							var pager = $("#dg").datagrid().datagrid('getPager');
+							pager.pagination({
+								buttons : [{
+									iconCls:'icon-search',
+									handler:function(){}
+								},'-',{
+									iconCls:'icon-save',
+									handler:function(){}
+								}],
+								onSelectPage:function(pageNumber,pageSize){
+									/*
+										pageNumber页数1,2,3.。。
+										pageSize每页显示的记录数10
+										pageNumber=1 startRow=0,endRow=总记录数
+									*/
+									//pageSize每页的开始记录和结束记录
+									var startRow = (pageNumber-1)*pageSize;
+									var endRow = results.rows.length;
+									var ResultData = [];//暂存页面正在显示的数据
+									var loopRows = 0 ;
+									//若果是最后一页,那么就显示从(pageNumber-1)*pageSize开始，startRow + endRow -(pageNumber-1)*10;结束的记录
+									if(pageNumber == Math.ceil(endRow/10)){
+										//20 + 22 -20
+										loopRows = startRow + endRow -(pageNumber-1)*10;
+									}else{
+										loopRows = startRow +10;
+									}
+									if(results){
+										for(var i = startRow;i<loopRows;i++){
+											ResultData.push(results.rows.item(i));
+										}
+									}
+									var datagridData = {
+										"total":results.rows.length,
+										"rows" : ResultData
+									}
+									$("#dg").datagrid('loadData',datagridData);
+								}
+							})
+
+							
+						})//end trans
+					})
+				}
+
+				//点击添加按钮，出现提那家对话框，进行添加操作
+				function dataAdd(){
+					//清除表单中的内容、
+					$("#wu-form").form('clear');
+					$("#wu-dialog").dialog({
+						title: '添加数据',
+					    width: 400,
+					    height: 300,
+					    closed: false,
+					    modal: true,
+					    buttons:[{
+								text:'保存',
+								iconCls : 'icon-save',
+								handler:function(){
+									add();
+									showAllTheData();
+								}
+							},{
+								text:'关闭',
+								iconCls : 'icon-cancel',
+								handler:function(){
+									$("#wu-dialog").dialog('close');
+								}
+							}]
+					})
+				}
+
+				//选中一条记录后点击修改按钮弹出修改对话框来修改记录
+				function dataEdit(){
+					$("#wu-form").form('clear');
+					//获取当前选中的数据
+					var item = $("#dg").datagrid('getSelected');
+					if(item){
+						$("#wu-form").form('load',item);
+							$("#wu-dialog").dialog({
+							title: '修改信息',
+						    width: 400,
+						    height: 300,
+						    closed: false,
+						    modal: true,
+						    buttons:[{
+									text:'保存',
+									iconCls : 'icon-save',
+									handler:function(){
+										edit();
+									}
+								},{
+									text:'关闭',
+									iconCls : 'icon-cancel',
+									handler:function(){
+										$("#wu-dialog").dialog('close');
+									}
+								}]
+						})
+					}
+				}
+				
+				//顶部按钮设置
+				$('#Addbtn').linkbutton({
+				    iconCls: 'icon-add',
+				});
+				$('#Removebtn').linkbutton({
+				    iconCls: 'icon-remove'
+				});
+				$('#Savebtn').linkbutton({
+				    iconCls: 'icon-save'
+				});
+				$('#Cutbtn').linkbutton({
+				    iconCls: 'icon-cut',
+				    disabled:true
+				});
+				$('#Textbtn').linkbutton({
+				   
+				});
+				$("#Addbtn").bind('click',function(){
+					//清除表单中的内容、
+					$("#wu-form").form('clear');
+					$("#wu-dialog").dialog({
+						title: '添加数据',
+					    width: 400,
+					    height: 300,
+					    closed: false,
+					    modal: true,
+					    buttons:[{
+								text:'保存',
+								iconCls : 'icon-save',
+								handler:function(){
+									add();
+									showAllTheData();
+								}
+							},{
+								text:'关闭',
+								iconCls : 'icon-cancel',
+								handler:function(){
+									$("#wu-dialog").dialog('close');
+								}
+							}]
+					})
+				});
+				$("#Removebtn").bind('click',function(){
+					var item = $("#dg").datagrid('getSelections');
+					var rowid = [];
+					for(var i=0;i<item.length;i++){
+						rowid.push(item[i].rowid);
+					}
+					//打开数据库
+					var db = getCurrentDb();
+					db.transaction(function(trans){
+						trans.executeSql("delete from Demo where rowid in("+rowid.join(',')+")",[],function(trans,result){
+							showAllTheData();
+						});
+					})
+				});
+							
+		})
+	</script>
+
+
+
+	
+
+</body>
+</html>
